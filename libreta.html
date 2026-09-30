@@ -183,10 +183,10 @@ nav.bottom-nav{
   padding:8px 6px calc(env(safe-area-inset-bottom,0px) + 8px); z-index:55;
 }
 nav.bottom-nav button{
-  flex:1; background:none; border:none; display:flex; flex-direction:column; align-items:center; gap:3px;
-  color:var(--text-muted); font-size:11px; padding:6px 0;
+  flex:1; background:none; border:none; display:flex; flex-direction:column; align-items:center; gap:2px;
+  color:var(--text-muted); font-size:9.5px; padding:6px 0; min-width:0;
 }
-nav.bottom-nav button .n-ico{font-size:19px;}
+nav.bottom-nav button .n-ico{font-size:17px;}
 nav.bottom-nav button.active{color:var(--text);}
 
 /* ============ CARDS / GENERIC ============ */
@@ -354,6 +354,17 @@ nav.bottom-nav button.active{color:var(--text);}
 .co-check.done{background:var(--accent-usd); border-color:var(--accent-usd); color:#fff;}
 .co-trash{background:none; border:none; color:var(--text-muted); font-size:15px; flex:none;}
 
+/* ============ TRATAMIENTO ============ */
+.trat-check{width:48px; height:48px; border-radius:50%; border:1.5px solid var(--divider); background:var(--surface-alt); font-size:21px; flex:none;}
+.trat-check.done{background:var(--accent-usd); border-color:var(--accent-usd);}
+.cal-grid{display:grid; grid-template-columns:repeat(7,1fr); gap:6px; margin-top:6px;}
+.cal-dow{font-size:10.5px; color:var(--text-muted); text-align:center; padding-bottom:4px;}
+.cal-day{aspect-ratio:1; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:12.5px; background:var(--surface-alt); color:var(--text-muted);}
+.cal-day.empty{background:none;}
+.cal-day.today{box-shadow:inset 0 0 0 1.5px var(--text);}
+.cal-day.taken{background:var(--accent-usd); color:#fff; font-weight:600;}
+.cal-day.future{opacity:0.35;}
+
 /* ============ NAV BADGE ============ */
 nav.bottom-nav button{position:relative;}
 .nav-dot{position:absolute; top:2px; right:calc(50% - 20px); width:8px; height:8px; border-radius:50%; background:var(--danger);}
@@ -429,6 +440,17 @@ nav.bottom-nav button{position:relative;}
               <div class="v" id="pillMes">0,00 Bs</div>
             </div>
           </div>
+        </div>
+
+        <div class="card" id="tratCard" style="margin-top:14px;">
+          <div class="row-between">
+            <div>
+              <div style="font-size:13px;color:var(--text-muted);">💊 Tratamiento diario</div>
+              <div id="tratEstadoTxt" style="font-family:var(--font-display);font-weight:600;font-size:15.5px;margin-top:3px;">—</div>
+            </div>
+            <button id="tratToggle" class="trat-check">💊</button>
+          </div>
+          <button id="tratVerHistorial" class="link" style="margin-top:10px;">Ver historial completo →</button>
         </div>
 
         <div class="section-title">Movimientos de hoy <span class="count" id="hoyCount"></span></div>
@@ -561,6 +583,45 @@ nav.bottom-nav button{position:relative;}
         </div>
       </section>
 
+      <!-- TAB: CLASES -->
+      <section class="tab" id="tab-clases">
+        <div class="card">
+          <div class="label" style="font-size:13px;color:var(--text-muted)">Promedio del semestre</div>
+          <div class="kpi">
+            <div class="v" id="semestrePromedio">—</div>
+            <div class="d" id="semestreSub" style="margin-top:6px;">Aún no tienes materias</div>
+          </div>
+        </div>
+        <div class="section-title">Tus materias <span class="count" id="materiasCount"></span></div>
+        <div id="materiasLista"></div>
+        <button class="btn btn-outline btn-sm" id="btnNuevaMateria" style="margin-top:6px;">+ Nueva materia</button>
+      </section>
+
+      <!-- PANEL: DETALLE DE MATERIA -->
+      <div class="ajustes-panel" id="materiaPanel">
+        <div class="ajustes-topbar">
+          <h2 id="materiaPanelTitulo">Materia</h2>
+          <div style="display:flex; gap:8px;">
+            <button id="btnEditarMateria" class="btn-sm btn-ghost" style="width:auto;">Editar</button>
+            <button id="btnCerrarMateria" class="btn-sm btn-ghost" style="width:auto;">Hecho</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="label" style="font-size:13px;color:var(--text-muted)">Nota acumulada</div>
+          <div class="kpi">
+            <div class="v" id="materiaNota">0,00 / 20</div>
+            <div class="d" id="materiaEvaluado" style="margin-top:6px;">0% del plan evaluado</div>
+          </div>
+        </div>
+        <div id="materiaInsightBox"></div>
+
+        <div class="section-title">Plan de evaluación <span class="count" id="materiaPlanPct"></span></div>
+        <div class="ledger" id="evaluacionesLista" style="padding:6px 16px;"></div>
+        <button class="btn btn-outline btn-sm" id="btnNuevaEvaluacion" style="margin-top:14px;">+ Agregar actividad evaluada</button>
+        <div class="note-box">La nota se calcula sobre 20 puntos. El porcentaje de cada actividad debe sumar 100% en total para que la nota final sea exacta.</div>
+      </div>
+
       <!-- PANEL: AJUSTES (se abre con el engranaje, no es una pestaña del nav) -->
       <div class="ajustes-panel" id="ajustesPanel">
         <div class="ajustes-topbar">
@@ -619,7 +680,12 @@ nav.bottom-nav button{position:relative;}
               <div class="s-title" id="secMethod">—</div>
               <div class="s-sub">Método para abrir la app</div>
             </div>
-            <button class="link" id="btnChangeSec">Cambiar</button>
+            <button class="link" id="btnChangeSec">Cambiar método</button>
+          </div>
+          <div class="settings-item hidden" id="itemCambiarPin">
+            <div class="s-ico">🔢</div>
+            <div class="s-body"><div class="s-title">Cambiar código</div><div class="s-sub">Código numérico de 6 dígitos</div></div>
+            <button class="link" id="btnCambiarPin">Cambiar</button>
           </div>
           <div class="settings-item">
             <div class="s-ico">🔐</div>
@@ -634,6 +700,11 @@ nav.bottom-nav button{position:relative;}
             <div class="s-ico">⬇️</div>
             <div class="s-body"><div class="s-title">Exportar respaldo</div><div class="s-sub">Guarda un archivo .json con todo</div></div>
             <button class="link" id="btnExport">Exportar</button>
+          </div>
+          <div class="settings-item">
+            <div class="s-ico">📊</div>
+            <div class="s-body"><div class="s-title">Exportar a Excel</div><div class="s-sub">Todos tus gastos en una tabla (.csv)</div></div>
+            <button class="link" id="btnExportCsv">Exportar</button>
           </div>
           <div class="settings-item" style="position:relative;">
             <div class="s-ico">⬆️</div>
@@ -659,6 +730,7 @@ nav.bottom-nav button{position:relative;}
       <button data-tab="stats"><span class="n-ico">📊</span>Estadísticas</button>
       <button data-tab="presupuesto"><span class="n-ico">🎯</span>Presupuesto<span class="nav-dot hidden" id="navDotPresupuesto"></span></button>
       <button data-tab="metas"><span class="n-ico">💰</span>Metas</button>
+      <button data-tab="clases"><span class="n-ico">🎓</span>Clases</button>
     </nav>
   </div>
 
@@ -742,6 +814,75 @@ nav.bottom-nav button{position:relative;}
         <button class="btn btn-outline hidden" id="btnBorrarCat" style="color:var(--danger);border-color:var(--danger-soft);">Eliminar</button>
         <button class="btn btn-primary" id="btnGuardarCat">Guardar</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ============ SHEET: MATERIA ============ -->
+  <div class="overlay" id="ovMateria">
+    <div class="sheet">
+      <div class="sheet-handle"></div>
+      <h2 id="materiaTitulo">Nueva materia</h2>
+      <div class="field">
+        <label>Nombre de la materia</label>
+        <input type="text" id="materiaNombre" maxlength="40" placeholder="Ej. Cálculo III">
+      </div>
+      <div class="field">
+        <label>Profesor (opcional)</label>
+        <input type="text" id="materiaProfesor" maxlength="40" placeholder="Ej. Prof. Rodríguez">
+      </div>
+      <div class="sheet-actions">
+        <button class="btn btn-outline hidden" id="btnBorrarMateria" style="color:var(--danger);border-color:var(--danger-soft);">Eliminar</button>
+        <button class="btn btn-primary" id="btnGuardarMateria">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ SHEET: ACTIVIDAD EVALUADA ============ -->
+  <div class="overlay" id="ovEvaluacion">
+    <div class="sheet">
+      <div class="sheet-handle"></div>
+      <h2 id="evaluacionTitulo">Nueva actividad</h2>
+      <div class="field">
+        <label>Nombre de la actividad</label>
+        <input type="text" id="evalNombre" maxlength="40" placeholder="Ej. Primer parcial, Proyecto final…">
+      </div>
+      <div class="field">
+        <label>Porcentaje sobre la nota final</label>
+        <input type="number" inputmode="decimal" id="evalPorcentaje" placeholder="0" step="1" min="0" max="100">
+      </div>
+      <div class="field">
+        <label>Nota obtenida (sobre 20, déjalo vacío si aún no la tienes)</label>
+        <input type="number" inputmode="decimal" id="evalNota" placeholder="Sin nota todavía" step="0.01" min="0" max="20">
+      </div>
+      <div class="sheet-actions">
+        <button class="btn btn-outline hidden" id="btnBorrarEvaluacion" style="color:var(--danger);border-color:var(--danger-soft);">Eliminar</button>
+        <button class="btn btn-primary" id="btnGuardarEvaluacion">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ SHEET: REGISTRO DE TRATAMIENTO ============ -->
+  <div class="overlay" id="ovTratamiento">
+    <div class="sheet">
+      <div class="sheet-handle"></div>
+      <h2>💊 Registro de tratamiento</h2>
+      <div class="month-nav">
+        <button id="tratPrev">‹</button>
+        <div class="lbl" id="tratLabel">—</div>
+        <button id="tratNext">›</button>
+      </div>
+      <div style="display:flex;gap:10px;margin-bottom:6px;">
+        <div style="flex:1;background:var(--surface-alt);border-radius:var(--radius-m);padding:10px 12px;">
+          <div style="font-size:11.5px;color:var(--text-muted);">Racha actual</div>
+          <div id="tratRachaTxt" style="font-family:var(--font-display);font-size:16px;font-weight:600;margin-top:2px;">0 días</div>
+        </div>
+        <div style="flex:1;background:var(--surface-alt);border-radius:var(--radius-m);padding:10px 12px;">
+          <div style="font-size:11.5px;color:var(--text-muted);">Este mes</div>
+          <div id="tratMesTxt" style="font-family:var(--font-display);font-size:16px;font-weight:600;margin-top:2px;">0 de 0 días</div>
+        </div>
+      </div>
+      <div class="cal-grid" id="tratCalendario"></div>
+      <p style="font-size:12px;color:var(--text-muted);margin-top:14px;">Toca cualquier día pasado para marcarlo o desmarcarlo, por si olvidaste registrarlo a tiempo.</p>
     </div>
   </div>
 
@@ -908,7 +1049,7 @@ document.querySelectorAll('.overlay').forEach(ov=>{
 
 /* ================= BASE DE DATOS (IndexedDB) ================= */
 const DB_NAME = 'libretaDB';
-const DB_VERSION = 2;
+const DB_VERSION = 4;
 let dbP = new Promise((resolve,reject)=>{
   const req = indexedDB.open(DB_NAME, DB_VERSION);
   req.onupgradeneeded = (e)=>{
@@ -928,6 +1069,12 @@ let dbP = new Promise((resolve,reject)=>{
       s2.createIndex('metaId','metaId');
     }
     if(!db.objectStoreNames.contains('compras')) db.createObjectStore('compras',{keyPath:'id'});
+    if(!db.objectStoreNames.contains('tratamiento')) db.createObjectStore('tratamiento',{keyPath:'fecha'});
+    if(!db.objectStoreNames.contains('materias')) db.createObjectStore('materias',{keyPath:'id'});
+    if(!db.objectStoreNames.contains('evaluaciones')){
+      const s3 = db.createObjectStore('evaluaciones',{keyPath:'id'});
+      s3.createIndex('materiaId','materiaId');
+    }
   };
   req.onsuccess = (e)=>resolve(e.target.result);
   req.onerror = (e)=>reject(e.target.error);
@@ -953,7 +1100,7 @@ async function dbGetAll(store){ return tx(store,'readonly',(s)=>reqP(s[store].ge
 async function dbPut(store,val){ return tx(store,'readwrite',(s)=>reqP(s[store].put(val))); }
 async function dbDelete(store,key){ return tx(store,'readwrite',(s)=>reqP(s[store].delete(key))); }
 async function dbClearAll(){
-  return tx(['gastos','fotos','tasas','categorias','config','presupuestos','metas','movimientosAhorro','compras'],'readwrite',(s)=>{
+  return tx(['gastos','fotos','tasas','categorias','config','presupuestos','metas','movimientosAhorro','compras','tratamiento','materias','evaluaciones'],'readwrite',(s)=>{
     Object.values(s).forEach(st=>st.clear());
   });
 }
@@ -982,6 +1129,15 @@ let metaSegmento = 'ahorros'; // 'ahorros' | 'compras'
 let editingMetaId = null;
 let editingCompraId = null;
 let currentMov = null; // {metaId, tipo}
+let tratamientoDias = new Set(); // fechas ISO en que se marcó el tratamiento
+let tratCursor = new Date(); // mes visible en el calendario de tratamiento
+let materias = []; // [{id,nombre,profesor}]
+let evaluaciones = []; // [{id,materiaId,nombre,porcentaje,nota}]
+let editingMateriaId = null;
+let editingEvaluacionId = null;
+let currentMateriaDetalleId = null; // materia cuyo panel de detalle está abierto
+const ESCALA_NOTA = 20;
+const NOTA_APROBATORIA = 10;
 
 const CATS_DEFAULT = [
   {id:'alimentacion', nombre:'Alimentación', icono:'🍽️'},
@@ -1045,13 +1201,15 @@ async function verificarPin(pin){
   return rec.valor === await sha256hex(pin);
 }
 
+const PIN_LENGTH = 6;
 let pinBuffer = '';
 let pinMode = 'verify'; // 'verify' | 'setup1' | 'setup2'
 let pinFirst = '';
+let pinChangeMode = false; // true cuando el cambio de código se pide desde Ajustes
 
 function renderPinDots(){
   const dots = $('pinDots');
-  dots.innerHTML = Array.from({length:6}).map((_,i)=>`<div class="pin-dot ${i<pinBuffer.length?'filled':''}"></div>`).join('');
+  dots.innerHTML = Array.from({length:PIN_LENGTH}).map((_,i)=>`<div class="pin-dot ${i<pinBuffer.length?'filled':''}"></div>`).join('');
 }
 function buildPinPad(){
   const keys = ['1','2','3','4','5','6','7','8','9','','0','⌫'];
@@ -1067,11 +1225,10 @@ function buildPinPad(){
 async function onPinKey(k){
   $('pinError').textContent='';
   if(k==='del'){ pinBuffer = pinBuffer.slice(0,-1); renderPinDots(); return; }
-  if(pinBuffer.length>=6) return;
+  if(pinBuffer.length>=PIN_LENGTH) return;
   pinBuffer += k;
   renderPinDots();
-  const need = pinMode==='verify' ? 4 : 4;
-  if(pinBuffer.length===4){
+  if(pinBuffer.length===PIN_LENGTH){
     if(pinMode==='verify'){
       const ok = await verificarPin(pinBuffer);
       if(ok){ pinBuffer=''; await onAuthSuccess(); }
@@ -1085,11 +1242,14 @@ async function onPinKey(k){
       if(pinBuffer===pinFirst){
         await registrarPin(pinBuffer);
         pinBuffer='';
+        const fueCambio = pinChangeMode;
+        pinChangeMode = false;
         await onAuthSuccess();
+        if(fueCambio) toast('Código actualizado');
       } else {
         $('pinError').textContent='No coincide, empecemos de nuevo.';
         pinBuffer=''; pinFirst=''; pinMode='setup1';
-        $('lockSub').textContent='Crea un código de 4 dígitos';
+        $('lockSub').textContent = pinChangeMode ? 'Crea un nuevo código de 6 dígitos' : 'Crea un código de 6 dígitos';
         renderPinDots();
       }
     }
@@ -1118,7 +1278,7 @@ async function iniciarBloqueo(){
   } else {
     $('lockTitle').textContent = 'Libreta';
     $('lockSub').textContent = 'Ingresa tu código';
-    pinMode='verify'; pinBuffer='';
+    pinMode='verify'; pinBuffer=''; pinChangeMode=false;
     $('lockPin').classList.remove('hidden');
     renderPinDots();
   }
@@ -1141,18 +1301,32 @@ $('btnSetupFaceId').addEventListener('click', async ()=>{
 $('btnSetupPin').addEventListener('click', ()=>{
   $('lockOnboard').classList.add('hidden');
   $('lockPin').classList.remove('hidden');
-  pinMode='setup1'; pinBuffer=''; pinFirst='';
-  $('lockSub').textContent='Crea un código de 4 dígitos';
+  pinMode='setup1'; pinBuffer=''; pinFirst=''; pinChangeMode=false;
+  $('lockSub').textContent='Crea un código de 6 dígitos';
   renderPinDots();
 });
 $('btnUnlockFaceId').addEventListener('click', intentarFaceIdAuto);
 $('btnUsePinInstead').addEventListener('click', async ()=>{
   $('lockFaceId').classList.add('hidden');
   $('lockPin').classList.remove('hidden');
-  pinMode='verify'; pinBuffer='';
+  pinMode='verify'; pinBuffer=''; pinChangeMode=false;
   $('lockSub').textContent='Ingresa tu código (o configúralo si es la primera vez)';
   const has = await dbGet('config','pinHash');
-  if(!has){ pinMode='setup1'; $('lockSub').textContent='Crea un código de 4 dígitos'; }
+  if(!has){ pinMode='setup1'; $('lockSub').textContent='Crea un código de 6 dígitos'; }
+  renderPinDots();
+});
+$('btnCambiarPin').addEventListener('click', ()=>{
+  pinChangeMode = true;
+  $('ajustesPanel').classList.remove('show');
+  $('app').classList.add('hidden');
+  $('lock').classList.remove('hidden');
+  buildPinPad();
+  ['lockOnboard','lockFaceId'].forEach(id=>$(id).classList.add('hidden'));
+  $('lockPin').classList.remove('hidden');
+  $('lockTitle').textContent = 'Cambia tu código';
+  $('lockSub').textContent = 'Crea un nuevo código de 6 dígitos';
+  pinMode='setup1'; pinBuffer=''; pinFirst='';
+  $('pinError').textContent='';
   renderPinDots();
 });
 
@@ -1606,6 +1780,7 @@ function renderTabActual(){
   else if(activo==='tab-stats') renderStats();
   else if(activo==='tab-presupuesto') renderPresupuesto();
   else if(activo==='tab-metas') renderMetas();
+  else if(activo==='tab-clases') renderClases();
 }
 $('btnAjustes').addEventListener('click', ()=>{
   refrescarChipTasa();
@@ -1651,6 +1826,7 @@ async function renderHoy(){
     `<div class="empty"><div class="e-ico">🌤️</div>Aún no has anotado gastos hoy.<br>Toca el botón + para agregar el primero.</div>`;
   adjuntarEventosFilas($('hoyLista'));
   refrescarChipTasa();
+  renderTratCard();
   renderAlertas();
   actualizarNavDotPresupuesto();
 }
@@ -2167,10 +2343,295 @@ async function renderAlertas(){
   $('alertasBox').innerHTML = alertas.map(a=>`<div class="alert ${a.nivel}"><span class="a-ico">${a.icono}</span><p>${a.html}</p></div>`).join('');
 }
 
+/* ================= TRATAMIENTO DIARIO ================= */
+async function cargarTratamiento(){
+  const registros = await dbGetAll('tratamiento');
+  tratamientoDias = new Set(registros.map(r=>r.fecha));
+}
+function calcularRachaTratamiento(){
+  let racha = 0;
+  const cursor = new Date();
+  if(!tratamientoDias.has(todayISO())) cursor.setDate(cursor.getDate()-1);
+  while(tratamientoDias.has(fISO(cursor))){
+    racha++;
+    cursor.setDate(cursor.getDate()-1);
+  }
+  return racha;
+}
+function renderTratCard(){
+  const tomado = tratamientoDias.has(todayISO());
+  $('tratEstadoTxt').textContent = tomado ? 'Tomada hoy ✓' : 'Aún no la marcas hoy';
+  $('tratToggle').textContent = tomado ? '✓' : '💊';
+  $('tratToggle').classList.toggle('done', tomado);
+}
+async function toggleTratamientoHoy(){
+  const hoy = todayISO();
+  if(tratamientoDias.has(hoy)) await dbDelete('tratamiento', hoy);
+  else await dbPut('tratamiento', {fecha:hoy, hora:new Date().toTimeString().slice(0,5)});
+  await cargarTratamiento();
+  renderTratCard();
+  renderAlertas();
+  if($('ovTratamiento').classList.contains('show')) renderCalendarioTratamiento();
+}
+async function toggleTratamientoDia(iso){
+  if(iso > todayISO()) return;
+  if(tratamientoDias.has(iso)) await dbDelete('tratamiento', iso);
+  else await dbPut('tratamiento', {fecha:iso, hora: iso===todayISO() ? new Date().toTimeString().slice(0,5) : '—'});
+  await cargarTratamiento();
+  renderCalendarioTratamiento();
+  renderTratCard();
+}
+function renderCalendarioTratamiento(){
+  const y = tratCursor.getFullYear(), m = tratCursor.getMonth();
+  $('tratLabel').textContent = fmtMesAno(y,m);
+  const diasDelMes = new Date(y,m+1,0).getDate();
+  const primerDiaSemana = (new Date(y,m,1).getDay()+6)%7;
+  const hoy = todayISO();
+
+  let html = ['L','M','X','J','V','S','D'].map(d=>`<div class="cal-dow">${d}</div>`).join('');
+  for(let i=0;i<primerDiaSemana;i++) html += `<div class="cal-day empty"></div>`;
+  for(let d=1; d<=diasDelMes; d++){
+    const iso = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const tomado = tratamientoDias.has(iso);
+    const esFuturo = iso > hoy;
+    const esHoy = iso === hoy;
+    html += `<div class="cal-day ${tomado?'taken':''} ${esHoy?'today':''} ${esFuturo?'future':''}" data-dia="${iso}">${tomado?'✓':d}</div>`;
+  }
+  $('tratCalendario').innerHTML = html;
+  $('tratCalendario').querySelectorAll('.cal-day[data-dia]').forEach(el=>{
+    el.addEventListener('click', ()=>toggleTratamientoDia(el.dataset.dia));
+  });
+
+  const prefix = `${y}-${String(m+1).padStart(2,'0')}`;
+  const totalMes = Array.from(tratamientoDias).filter(f=>monthKey(f)===prefix).length;
+  const esMesActual = (y===new Date().getFullYear() && m===new Date().getMonth());
+  const diasTranscurridos = esMesActual ? new Date().getDate() : diasDelMes;
+  $('tratMesTxt').textContent = `${totalMes} de ${diasTranscurridos} días`;
+  $('tratRachaTxt').textContent = calcularRachaTratamiento() + ' días';
+}
+$('tratToggle').addEventListener('click', toggleTratamientoHoy);
+$('tratVerHistorial').addEventListener('click', ()=>{
+  tratCursor = new Date();
+  renderCalendarioTratamiento();
+  openSheet('ovTratamiento');
+});
+$('tratPrev').addEventListener('click', ()=>{ tratCursor.setMonth(tratCursor.getMonth()-1); renderCalendarioTratamiento(); });
+$('tratNext').addEventListener('click', ()=>{ tratCursor.setMonth(tratCursor.getMonth()+1); renderCalendarioTratamiento(); });
+
+/* ================= CLASES (MATERIAS Y NOTAS) ================= */
+async function cargarMaterias(){
+  materias = await dbGetAll('materias');
+  evaluaciones = await dbGetAll('evaluaciones');
+}
+function evaluacionesDeMateria(materiaId){
+  return evaluaciones.filter(e=>e.materiaId===materiaId).sort((a,b)=>(a.creadoEn||0)-(b.creadoEn||0));
+}
+function calcularMateria(materiaId){
+  const items = evaluacionesDeMateria(materiaId);
+  let totalPct=0, gradedPct=0, acumulado=0;
+  items.forEach(e=>{
+    const pct = e.porcentaje||0;
+    totalPct += pct;
+    if(e.nota!=null && e.nota!==''){
+      gradedPct += pct;
+      acumulado += (Number(e.nota) * pct/100);
+    }
+  });
+  const completo = items.length>0 && totalPct===100 && gradedPct===100;
+  const pctFaltante = 100 - gradedPct;
+  let notaNecesaria = null;
+  if(pctFaltante>0){
+    const puntosFaltantes = NOTA_APROBATORIA - acumulado;
+    notaNecesaria = puntosFaltantes / (pctFaltante/100);
+  }
+  return {items, totalPct, gradedPct, acumulado, completo, pctFaltante, notaNecesaria};
+}
+function renderClases(){
+  if(!materias.length){
+    $('materiasLista').innerHTML = `<div class="empty"><div class="e-ico">🎓</div>Aún no tienes materias.<br>Agrega la primera para empezar a llevar tus notas.</div>`;
+    $('semestrePromedio').textContent = '—';
+    $('semestreSub').textContent = 'Aún no tienes materias';
+    $('materiasCount').textContent = '';
+    return;
+  }
+  $('materiasCount').textContent = `${materias.length} materia${materias.length===1?'':'s'}`;
+  let sumaPromedios=0, contadas=0;
+  $('materiasLista').innerHTML = `<div class="ledger">` + materias.map(mat=>{
+    const c = calcularMateria(mat.id);
+    if(c.items.length){ sumaPromedios += c.acumulado; contadas++; }
+    const estado = c.items.length===0 ? 'Sin plan de evaluación' : `${c.gradedPct.toFixed(0)}% evaluado`;
+    const notaTxt = c.items.length ? `${c.acumulado.toFixed(2)}/${ESCALA_NOTA}` : '—';
+    const colorNota = !c.items.length ? 'var(--text-muted)' : (c.acumulado>=NOTA_APROBATORIA ? 'var(--accent-usd)' : (c.gradedPct>=100 ? 'var(--danger)' : 'var(--accent-bs)'));
+    return `<div class="ledger-row" data-materia="${esc(mat.id)}">
+      <div class="ico">🎓</div>
+      <div class="mid">
+        <div class="desc">${esc(mat.nombre)}</div>
+        <div class="meta">${esc(estado)}</div>
+      </div>
+      <div class="amt">
+        <div class="bs" style="color:${colorNota}">${notaTxt}</div>
+      </div>
+    </div>`;
+  }).join('') + `</div>`;
+  $('materiasLista').querySelectorAll('[data-materia]').forEach(row=>{
+    row.addEventListener('click', ()=>abrirDetalleMateria(row.dataset.materia));
+  });
+
+  if(contadas>0){
+    $('semestrePromedio').textContent = (sumaPromedios/contadas).toFixed(2) + ` / ${ESCALA_NOTA}`;
+    $('semestreSub').textContent = `Promedio de ${contadas} materia${contadas===1?'':'s'} con notas cargadas`;
+  } else {
+    $('semestrePromedio').textContent = '—';
+    $('semestreSub').textContent = 'Agrega el plan de evaluación de cada materia para ver tu promedio';
+  }
+}
+function abrirNuevaMateria(){
+  editingMateriaId = null;
+  $('materiaTitulo').textContent = 'Nueva materia';
+  $('materiaNombre').value=''; $('materiaProfesor').value='';
+  $('btnBorrarMateria').classList.add('hidden');
+  openSheet('ovMateria');
+}
+function abrirEditarMateriaSheet(){
+  const mat = materias.find(m=>m.id===currentMateriaDetalleId);
+  if(!mat) return;
+  editingMateriaId = mat.id;
+  $('materiaTitulo').textContent = 'Editar materia';
+  $('materiaNombre').value = mat.nombre; $('materiaProfesor').value = mat.profesor||'';
+  $('btnBorrarMateria').classList.remove('hidden');
+  openSheet('ovMateria');
+}
+$('btnNuevaMateria').addEventListener('click', abrirNuevaMateria);
+$('btnEditarMateria').addEventListener('click', abrirEditarMateriaSheet);
+$('btnGuardarMateria').addEventListener('click', async ()=>{
+  const nombre = $('materiaNombre').value.trim();
+  if(!nombre){ toast('Escribe un nombre'); return; }
+  const profesor = $('materiaProfesor').value.trim();
+  const id = editingMateriaId || crypto.randomUUID();
+  const existente = editingMateriaId ? materias.find(m=>m.id===editingMateriaId) : null;
+  await dbPut('materias', {id, nombre, profesor, creadoEn: existente ? existente.creadoEn : Date.now()});
+  await cargarMaterias();
+  closeSheet('ovMateria');
+  toast('Materia guardada');
+  if(currentMateriaDetalleId===id) renderMateriaDetalle();
+  renderClases();
+});
+$('btnBorrarMateria').addEventListener('click', async ()=>{
+  if(!editingMateriaId) return;
+  if(!confirm('¿Eliminar esta materia y todo su plan de evaluación?')) return;
+  await dbDelete('materias', editingMateriaId);
+  const items = evaluaciones.filter(e=>e.materiaId===editingMateriaId);
+  for(const it of items) await dbDelete('evaluaciones', it.id);
+  await cargarMaterias();
+  closeSheet('ovMateria');
+  $('materiaPanel').classList.remove('show');
+  renderClases();
+});
+
+function abrirDetalleMateria(materiaId){
+  currentMateriaDetalleId = materiaId;
+  renderMateriaDetalle();
+  $('materiaPanel').classList.add('show');
+}
+$('btnCerrarMateria').addEventListener('click', ()=>{
+  $('materiaPanel').classList.remove('show');
+  renderClases();
+});
+function renderMateriaDetalle(){
+  const mat = materias.find(m=>m.id===currentMateriaDetalleId);
+  if(!mat) return;
+  $('materiaPanelTitulo').textContent = mat.nombre;
+  const c = calcularMateria(mat.id);
+  $('materiaNota').textContent = `${c.acumulado.toFixed(2)} / ${ESCALA_NOTA}`;
+  $('materiaNota').style.color = !c.items.length ? 'var(--text)' : (c.acumulado>=NOTA_APROBATORIA ? 'var(--accent-usd)' : 'var(--text)');
+  $('materiaEvaluado').textContent = `${c.gradedPct.toFixed(0)}% del plan evaluado`;
+  $('materiaPlanPct').textContent = c.totalPct===100 ? 'Plan: 100% ✓' : `Plan: ${c.totalPct.toFixed(0)}%`;
+
+  let insight = '';
+  if(c.items.length===0){
+    insight = `<div class="insight"><span class="i-ico">📋</span><p>Agrega las actividades de tu plan de evaluación con su porcentaje para empezar a calcular tu nota.</p></div>`;
+  } else if(c.completo){
+    insight = c.acumulado>=NOTA_APROBATORIA
+      ? `<div class="insight"><span class="i-ico">🎉</span><p>Plan completo. Aprobaste con <b>${c.acumulado.toFixed(2)}/${ESCALA_NOTA}</b>.</p></div>`
+      : `<div class="insight"><span class="i-ico">⚠️</span><p>Plan completo. Quedaste con <b>${c.acumulado.toFixed(2)}/${ESCALA_NOTA}</b>, por debajo del mínimo de ${NOTA_APROBATORIA}.</p></div>`;
+  } else if(c.acumulado>=NOTA_APROBATORIA){
+    insight = `<div class="insight"><span class="i-ico">✅</span><p>Ya aseguraste al menos <b>${c.acumulado.toFixed(2)}/${ESCALA_NOTA}</b>, por encima del mínimo para aprobar.</p></div>`;
+  } else if(c.notaNecesaria!=null && c.notaNecesaria<=ESCALA_NOTA){
+    insight = `<div class="insight"><span class="i-ico">🎯</span><p>Necesitas un promedio de <b>${c.notaNecesaria.toFixed(2)}/${ESCALA_NOTA}</b> en lo que falta del plan (${c.pctFaltante.toFixed(0)}%) para llegar a ${NOTA_APROBATORIA}.</p></div>`;
+  } else if(c.notaNecesaria!=null){
+    insight = `<div class="insight"><span class="i-ico">🚨</span><p>Con lo que falta por evaluar (${c.pctFaltante.toFixed(0)}%) ya no alcanza para llegar a ${NOTA_APROBATORIA}, necesitarías más de ${ESCALA_NOTA}.</p></div>`;
+  }
+  $('materiaInsightBox').innerHTML = insight;
+
+  $('evaluacionesLista').innerHTML = c.items.length ? c.items.map(e=>{
+    const tieneNota = e.nota!=null && e.nota!=='';
+    return `<div class="ledger-row" data-eval="${esc(e.id)}">
+      <div class="ico">${tieneNota?'✓':'📝'}</div>
+      <div class="mid">
+        <div class="desc">${esc(e.nombre)}</div>
+        <div class="meta">${e.porcentaje}% del total</div>
+      </div>
+      <div class="amt">
+        <div class="bs">${tieneNota ? Number(e.nota).toFixed(2)+'/'+ESCALA_NOTA : 'Sin nota'}</div>
+      </div>
+    </div>`;
+  }).join('') : `<div class="empty" style="padding:24px 0;">Aún no agregas actividades.</div>`;
+  $('evaluacionesLista').querySelectorAll('[data-eval]').forEach(row=>{
+    row.addEventListener('click', ()=>abrirEditarEvaluacion(row.dataset.eval));
+  });
+}
+function abrirNuevaEvaluacion(){
+  if(!currentMateriaDetalleId) return;
+  editingEvaluacionId = null;
+  $('evaluacionTitulo').textContent = 'Nueva actividad';
+  $('evalNombre').value=''; $('evalPorcentaje').value=''; $('evalNota').value='';
+  $('btnBorrarEvaluacion').classList.add('hidden');
+  openSheet('ovEvaluacion');
+}
+function abrirEditarEvaluacion(id){
+  const e = evaluaciones.find(x=>x.id===id);
+  if(!e) return;
+  editingEvaluacionId = id;
+  $('evaluacionTitulo').textContent = 'Editar actividad';
+  $('evalNombre').value = e.nombre;
+  $('evalPorcentaje').value = e.porcentaje;
+  $('evalNota').value = (e.nota!=null && e.nota!=='') ? e.nota : '';
+  $('btnBorrarEvaluacion').classList.remove('hidden');
+  openSheet('ovEvaluacion');
+}
+$('btnNuevaEvaluacion').addEventListener('click', abrirNuevaEvaluacion);
+$('btnGuardarEvaluacion').addEventListener('click', async ()=>{
+  const nombre = $('evalNombre').value.trim();
+  const porcentaje = parseFloat($('evalPorcentaje').value);
+  if(!nombre){ toast('Escribe un nombre'); return; }
+  if(!porcentaje || porcentaje<=0 || porcentaje>100){ toast('Ingresa un porcentaje válido (1-100)'); return; }
+  const notaVal = $('evalNota').value;
+  const nota = notaVal==='' ? null : clamp(parseFloat(notaVal),0,ESCALA_NOTA);
+  const id = editingEvaluacionId || crypto.randomUUID();
+  const existente = editingEvaluacionId ? evaluaciones.find(x=>x.id===editingEvaluacionId) : null;
+  await dbPut('evaluaciones', {
+    id, materiaId: currentMateriaDetalleId, nombre, porcentaje, nota,
+    creadoEn: existente ? existente.creadoEn : Date.now()
+  });
+  await cargarMaterias();
+  closeSheet('ovEvaluacion');
+  toast('Guardado');
+  renderMateriaDetalle();
+});
+$('btnBorrarEvaluacion').addEventListener('click', async ()=>{
+  if(!editingEvaluacionId) return;
+  if(!confirm('¿Eliminar esta actividad?')) return;
+  await dbDelete('evaluaciones', editingEvaluacionId);
+  await cargarMaterias();
+  closeSheet('ovEvaluacion');
+  renderMateriaDetalle();
+});
+
 /* ================= SEGURIDAD (AJUSTES) ================= */
 async function refrescarSeguridad(){
   const m = await dbGet('config','authMethod');
   $('secMethod').textContent = m && m.valor==='webauthn' ? 'Face ID / Touch ID' : (m ? 'Código numérico' : 'No configurado');
+  $('itemCambiarPin').classList.toggle('hidden', !(m && m.valor==='pin'));
 }
 $('btnChangeSec').addEventListener('click', async ()=>{
   if(!confirm('Se te pedirá configurar de nuevo el acceso. ¿Continuar?')) return;
@@ -2225,6 +2686,37 @@ $('btnExport').addEventListener('click', async ()=>{
     }
   }catch(e){ toast('No se pudo exportar'); }
 });
+function csvField(v){
+  const s = String(v==null?'':v);
+  if(/[",\n]/.test(s)) return '"' + s.replace(/"/g,'""') + '"';
+  return s;
+}
+$('btnExportCsv').addEventListener('click', async ()=>{
+  try{
+    toast('Preparando Excel…');
+    const todos = (await dbGetAll('gastos')).sort((a,b)=>{
+      if(a.fecha!==b.fecha) return a.fecha<b.fecha?-1:1;
+      return (a.hora||'').localeCompare(b.hora||'');
+    });
+    const filas = [['Fecha','Hora','Categoría','Descripción','Monto original','Moneda original','Monto Bs','Monto USD','Tasa usada']];
+    todos.forEach(g=>{
+      filas.push([
+        g.fecha, g.hora||'', catById(g.categoria).nombre, g.descripcion,
+        g.monedaOriginal==='USD' ? g.montoUSD.toFixed(2) : g.montoBs.toFixed(2),
+        g.monedaOriginal, g.montoBs.toFixed(2), g.montoUSD.toFixed(2),
+        g.tasaUsada!=null ? g.tasaUsada : ''
+      ]);
+    });
+    const csv = '\ufeff' + filas.map(fila=>fila.map(csvField).join(',')).join('\r\n');
+    const downloads = window.claude ? await window.claude.use('downloads') : null;
+    if(downloads){
+      await downloads.save({filename:`libreta-gastos-${todayISO()}.csv`, data: csv});
+      toast('Excel guardado');
+    } else {
+      toast('Abre esta app desde su enlace en Safari para poder exportar.');
+    }
+  }catch(e){ toast('No se pudo generar el archivo'); }
+});
 $('importInput').addEventListener('change', async (e)=>{
   const file = e.target.files[0];
   if(!file) return;
@@ -2256,7 +2748,7 @@ $('btnWipe').addEventListener('click', async ()=>{
 
 /* ================= CARGA INICIAL ================= */
 async function cargarTodo(){
-  await Promise.all([cargarCategorias(), cargarTasas(), cargarIngreso(), refrescarSeguridad(), cargarPresupuestos(), cargarMetas(), cargarCompras()]);
+  await Promise.all([cargarCategorias(), cargarTasas(), cargarIngreso(), refrescarSeguridad(), cargarPresupuestos(), cargarMetas(), cargarCompras(), cargarTratamiento(), cargarMaterias()]);
   document.querySelectorAll('section.tab').forEach(s=>s.classList.remove('active'));
   $('tab-hoy').classList.add('active');
   document.querySelectorAll('nav.bottom-nav button').forEach(b=>b.classList.toggle('active', b.dataset.tab==='hoy'));
