@@ -369,6 +369,15 @@ nav.bottom-nav button.active{color:var(--text);}
 .cal-day.today{box-shadow:inset 0 0 0 1.5px var(--text);}
 .cal-day.taken{background:var(--accent-usd); color:#fff; font-weight:600;}
 .cal-day.future{opacity:0.35;}
+.cal-day{position:relative;}
+.cal-day.ev{color:var(--text); font-weight:600; cursor:pointer;}
+.cal-day.sel{box-shadow:inset 0 0 0 2px var(--accent-usd);}
+.cal-day .ev-dots{position:absolute; bottom:5px; left:50%; transform:translateX(-50%); display:flex; gap:2px;}
+.cal-day .ev-dots i{width:5px; height:5px; border-radius:50%; display:block;}
+.ev-leyenda{display:flex; flex-wrap:wrap; gap:6px 12px; margin-top:12px; font-size:11.5px; color:var(--text-muted);}
+.ev-leyenda span{display:flex; align-items:center; gap:5px;}
+.ev-leyenda i{width:8px; height:8px; border-radius:50%; display:block;}
+.ev-tag{display:inline-block; font-size:10.5px; font-weight:600; padding:1px 7px; border-radius:999px; color:#fff; margin-right:4px; vertical-align:1px;}
 
 /* ============ NAV BADGE ============ */
 nav.bottom-nav button{position:relative;}
@@ -600,6 +609,21 @@ nav.bottom-nav button{position:relative;}
         <div class="section-title">Tus materias <span class="count" id="materiasCount"></span></div>
         <div id="materiasLista"></div>
         <button class="btn btn-outline btn-sm" id="btnNuevaMateria" style="margin-top:6px;">+ Nueva materia</button>
+
+        <div class="section-title">Próximas evaluaciones <span class="count" id="evProxCount"></span></div>
+        <div id="evProximas"></div>
+
+        <div class="section-title">Calendario de evaluaciones</div>
+        <div class="card" style="padding:14px;">
+          <div class="month-nav">
+            <button id="evCalPrev">‹</button>
+            <div class="lbl" id="evCalLabel">—</div>
+            <button id="evCalNext">›</button>
+          </div>
+          <div class="cal-grid" id="evCalendario"></div>
+          <div class="ev-leyenda" id="evLeyenda"></div>
+        </div>
+        <div id="evDiaBox" style="margin-top:12px;"></div>
       </section>
 
       <!-- PANEL: DETALLE DE MATERIA -->
@@ -871,12 +895,24 @@ nav.bottom-nav button{position:relative;}
     <div class="sheet">
       <div class="sheet-handle"></div>
       <h2 id="evaluacionTitulo">Nueva actividad</h2>
+      <div class="field hidden" id="evalMateriaField">
+        <label>Materia</label>
+        <select id="evalMateria"></select>
+      </div>
       <div class="field">
         <label>Nombre de la actividad</label>
         <input type="text" id="evalNombre" maxlength="40" placeholder="Ej. Primer parcial, Proyecto final…">
       </div>
       <div class="field">
-        <label>Porcentaje sobre la nota final</label>
+        <label>Tipo</label>
+        <select id="evalTipo"></select>
+      </div>
+      <div class="field">
+        <label>Fecha (opcional, para verla en el calendario)</label>
+        <input type="date" id="evalFecha">
+      </div>
+      <div class="field">
+        <label>Porcentaje sobre la nota final (déjalo vacío si aún no lo sabes)</label>
         <input type="number" inputmode="decimal" id="evalPorcentaje" placeholder="0" step="1" min="0" max="100">
       </div>
       <div class="field">
@@ -2374,6 +2410,13 @@ async function computeAlertas(){
     const dias = Math.floor((new Date(todayISO()) - new Date(t.fecha)) / 86400000);
     if(dias >= 2) alertas.push({nivel:'warn', icono:'💱', html:`Tu tasa BCV tiene <b>${dias} días</b> sin actualizar.`});
   }
+  evaluaciones.filter(e=>e.fecha && materias.some(m=>m.id===e.materiaId)).forEach(e=>{
+    const dd = diasHasta(e.fecha);
+    if(dd<0 || dd>3) return;
+    const mat = materias.find(m=>m.id===e.materiaId);
+    const cuando = dd===0 ? '<b>hoy</b>' : dd===1 ? '<b>mañana</b>' : `en <b>${dd} días</b>`;
+    alertas.push({nivel:'warn', icono:'📅', html:`${esc(e.nombre)} de ${esc(mat?mat.nombre:'')} es ${cuando}.`});
+  });
   const porCat = await totalesPresupuestoMes(monthKey(todayISO()));
   categorias.forEach(c=>{
     const p = presupuestoDeCategoria(c.id);
@@ -2473,6 +2516,123 @@ $('tratPrev').addEventListener('click', ()=>{ tratCursor.setMonth(tratCursor.get
 $('tratNext').addEventListener('click', ()=>{ tratCursor.setMonth(tratCursor.getMonth()+1); renderCalendarioTratamiento(); });
 
 /* ================= CLASES (MATERIAS Y NOTAS) ================= */
+const TIPOS_EVAL = {
+  parcial:    {nombre:'Parcial',    color:'#F59E0B'},
+  examen:     {nombre:'Examen',     color:'#EF4444'},
+  quiz:       {nombre:'Quiz',       color:'#3B82F6'},
+  trabajo:    {nombre:'Trabajo',    color:'#8B5CF6'},
+  exposicion: {nombre:'Exposición', color:'#10B981'},
+  otro:       {nombre:'Otro',       color:'#94A3B8'}
+};
+function tipoDeEvaluacion(e){
+  if(e.tipo && TIPOS_EVAL[e.tipo]) return e.tipo;
+  const n = normTxt(e.nombre);
+  if(/parcial/.test(n)) return 'parcial';
+  if(/examen|final|reparacion/.test(n)) return 'examen';
+  if(/quiz|prueba corta/.test(n)) return 'quiz';
+  if(/exposici|presentaci|defensa/.test(n)) return 'exposicion';
+  if(/trabajo|proyecto|informe|ensayo|taller|tarea|caso/.test(n)) return 'trabajo';
+  return 'otro';
+}
+let evCalCursor = new Date();
+let evDiaSeleccionado = null;
+let evalDesdeCalendario = false;
+function fechaLarga(iso){
+  const [y,m,d] = iso.split('-').map(Number);
+  return new Date(y,m-1,d).toLocaleDateString('es-VE',{weekday:'long', day:'numeric', month:'long'});
+}
+function diasHasta(iso){
+  const [y,m,d] = iso.split('-').map(Number);
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  return Math.round((new Date(y,m-1,d) - hoy)/86400000);
+}
+function filaEvaluacionCal(e){
+  const mat = materias.find(m=>m.id===e.materiaId);
+  const t = TIPOS_EVAL[tipoDeEvaluacion(e)];
+  const dd = diasHasta(e.fecha);
+  const cuando = dd===0 ? 'Hoy' : dd===1 ? 'Mañana' : dd>1 ? `En ${dd} días` : fechaLarga(e.fecha);
+  const tieneNota = e.nota!=null && e.nota!=='';
+  return `<div class="ledger-row" data-evcal="${esc(e.id)}">
+    <div class="ico" style="background:${t.color}22;">${tieneNota?'✓':'📅'}</div>
+    <div class="mid">
+      <div class="desc">${esc(e.nombre)}</div>
+      <div class="meta"><span class="ev-tag" style="background:${t.color}">${t.nombre}</span>${esc(mat?mat.nombre:'Sin materia')}</div>
+    </div>
+    <div class="amt"><div class="usd" style="font-size:13px;">${cuando}</div>${e.porcentaje?`<div class="bs">${e.porcentaje}%</div>`:''}</div>
+  </div>`;
+}
+function conectarFilasEvCal(cont){
+  cont.querySelectorAll('[data-evcal]').forEach(row=>{
+    row.addEventListener('click', ()=>{
+      const e = evaluaciones.find(x=>x.id===row.dataset.evcal);
+      if(!e) return;
+      currentMateriaDetalleId = e.materiaId;
+      abrirEditarEvaluacion(e.id);
+      evalDesdeCalendario = true;
+    });
+  });
+}
+function renderCalendarioEvaluaciones(){
+  const y = evCalCursor.getFullYear(), m = evCalCursor.getMonth();
+  $('evCalLabel').textContent = fmtMesAno(y,m);
+  const diasDelMes = new Date(y,m+1,0).getDate();
+  const primer = (new Date(y,m,1).getDay()+6)%7;
+  const hoy = todayISO();
+  const conFecha = evaluaciones.filter(e=>e.fecha && materias.some(mt=>mt.id===e.materiaId));
+  let html = ['L','M','X','J','V','S','D'].map(d=>`<div class="cal-dow">${d}</div>`).join('');
+  for(let i=0;i<primer;i++) html += `<div class="cal-day empty"></div>`;
+  for(let d=1; d<=diasDelMes; d++){
+    const iso = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const delDia = conFecha.filter(e=>e.fecha===iso);
+    const puntos = delDia.slice(0,3).map(e=>`<i style="background:${TIPOS_EVAL[tipoDeEvaluacion(e)].color}"></i>`).join('');
+    html += `<div class="cal-day ${delDia.length?'ev':''} ${iso===hoy?'today':''} ${iso===evDiaSeleccionado?'sel':''}" data-evdia="${iso}">${d}${puntos?`<span class="ev-dots">${puntos}</span>`:''}</div>`;
+  }
+  $('evCalendario').innerHTML = html;
+  $('evCalendario').querySelectorAll('[data-evdia]').forEach(el=>{
+    el.addEventListener('click', ()=>{ evDiaSeleccionado = el.dataset.evdia; renderCalendarioEvaluaciones(); });
+  });
+  $('evLeyenda').innerHTML = Object.values(TIPOS_EVAL).map(t=>`<span><i style="background:${t.color}"></i>${t.nombre}</span>`).join('');
+
+  const box = $('evDiaBox');
+  if(!evDiaSeleccionado){ box.innerHTML = ''; }
+  else {
+    const delDia = conFecha.filter(e=>e.fecha===evDiaSeleccionado);
+    box.innerHTML = `<div class="section-title" style="margin-top:0;text-transform:capitalize;">${fechaLarga(evDiaSeleccionado)}</div>
+      ${delDia.length ? `<div class="ledger">${delDia.map(filaEvaluacionCal).join('')}</div>` : `<div class="empty" style="padding:14px 0;">Nada programado este día.</div>`}
+      <button class="btn btn-outline btn-sm" id="btnEvEnDia" style="margin-top:8px;">+ Agregar evaluación este día</button>`;
+    conectarFilasEvCal(box);
+    $('btnEvEnDia').addEventListener('click', ()=>abrirNuevaEvaluacionEnFecha(evDiaSeleccionado));
+  }
+
+  const proximas = conFecha.filter(e=>e.fecha>=hoy).sort((a,b)=>a.fecha<b.fecha?-1:a.fecha>b.fecha?1:0).slice(0,5);
+  $('evProxCount').textContent = proximas.length ? String(proximas.length) : '';
+  $('evProximas').innerHTML = proximas.length
+    ? `<div class="ledger">${proximas.map(filaEvaluacionCal).join('')}</div>`
+    : `<div class="empty" style="padding:14px 0;">No tienes evaluaciones próximas con fecha.<br>Toca un día del calendario para agregar una.</div>`;
+  conectarFilasEvCal($('evProximas'));
+}
+function abrirNuevaEvaluacionEnFecha(iso){
+  if(!materias.length){ toast('Primero agrega una materia'); return; }
+  evalDesdeCalendario = true;
+  editingEvaluacionId = null;
+  currentMateriaDetalleId = null;
+  $('evaluacionTitulo').textContent = 'Nueva evaluación';
+  $('evalMateria').innerHTML = materias.map(m=>`<option value="${esc(m.id)}">${esc(m.nombre)}</option>`).join('');
+  $('evalMateriaField').classList.remove('hidden');
+  $('evalNombre').value=''; $('evalPorcentaje').value=''; $('evalNota').value='';
+  $('evalTipo').value = 'parcial';
+  $('evalFecha').value = iso || '';
+  $('btnBorrarEvaluacion').classList.add('hidden');
+  openSheet('ovEvaluacion');
+}
+$('evCalPrev').addEventListener('click', ()=>{ evCalCursor.setMonth(evCalCursor.getMonth()-1); renderCalendarioEvaluaciones(); });
+$('evCalNext').addEventListener('click', ()=>{ evCalCursor.setMonth(evCalCursor.getMonth()+1); renderCalendarioEvaluaciones(); });
+$('evalTipo').innerHTML = Object.entries(TIPOS_EVAL).map(([k,t])=>`<option value="${k}">${t.nombre}</option>`).join('');
+$('evalNombre').addEventListener('input', ()=>{
+  if(editingEvaluacionId) return;
+  const t = tipoDeEvaluacion({nombre:$('evalNombre').value});
+  if(t!=='otro') $('evalTipo').value = t;
+});
 async function cargarMaterias(){
   materias = await dbGetAll('materias');
   evaluaciones = await dbGetAll('evaluaciones');
@@ -2501,6 +2661,8 @@ function calcularMateria(materiaId){
   return {items, totalPct, gradedPct, acumulado, completo, pctFaltante, notaNecesaria};
 }
 function renderClases(){
+  try{ renderCalendarioEvaluaciones(); }catch(e){ console.error(e); }
+  sincronizarEvaluacionesNube();   // por si cambiaste el nombre de una materia o la borraste
   if(!materias.length){
     $('materiasLista').innerHTML = `<div class="empty"><div class="e-ico">🎓</div>Aún no tienes materias.<br>Agrega la primera para empezar a llevar tus notas.</div>`;
     $('semestrePromedio').textContent = '—';
@@ -2623,7 +2785,7 @@ function renderMateriaDetalle(){
       <div class="ico">${tieneNota?'✓':'📝'}</div>
       <div class="mid">
         <div class="desc">${esc(e.nombre)}</div>
-        <div class="meta">${e.porcentaje}% del total</div>
+        <div class="meta">${e.porcentaje ? e.porcentaje+'% del total' : 'Sin porcentaje'}${e.fecha ? ' · 📅 '+fechaLarga(e.fecha) : ''}</div>
       </div>
       <div class="amt">
         <div class="bs">${tieneNota ? Number(e.nota).toFixed(2)+'/'+ESCALA_NOTA : 'Sin nota'}</div>
@@ -2637,8 +2799,11 @@ function renderMateriaDetalle(){
 function abrirNuevaEvaluacion(){
   if(!currentMateriaDetalleId) return;
   editingEvaluacionId = null;
+  evalDesdeCalendario = false;
+  $('evalMateriaField').classList.add('hidden');
   $('evaluacionTitulo').textContent = 'Nueva actividad';
   $('evalNombre').value=''; $('evalPorcentaje').value=''; $('evalNota').value='';
+  $('evalTipo').value = 'otro'; $('evalFecha').value = '';
   $('btnBorrarEvaluacion').classList.add('hidden');
   openSheet('ovEvaluacion');
 }
@@ -2650,27 +2815,44 @@ function abrirEditarEvaluacion(id){
   $('evalNombre').value = e.nombre;
   $('evalPorcentaje').value = e.porcentaje;
   $('evalNota').value = (e.nota!=null && e.nota!=='') ? e.nota : '';
+  $('evalTipo').value = tipoDeEvaluacion(e);
+  $('evalFecha').value = e.fecha || '';
+  $('evalMateriaField').classList.add('hidden');
+  evalDesdeCalendario = false;
   $('btnBorrarEvaluacion').classList.remove('hidden');
   openSheet('ovEvaluacion');
 }
 $('btnNuevaEvaluacion').addEventListener('click', abrirNuevaEvaluacion);
+function refrescarTrasEvaluacion(){
+  evalDesdeCalendario = false;
+  sincronizarEvaluacionesNube();
+  if($('materiaPanel').classList.contains('show') && currentMateriaDetalleId) renderMateriaDetalle();
+  renderClases();
+  renderAlertas();
+}
 $('btnGuardarEvaluacion').addEventListener('click', async ()=>{
   const nombre = $('evalNombre').value.trim();
-  const porcentaje = parseFloat($('evalPorcentaje').value);
+  const pctTxt = $('evalPorcentaje').value;
+  const porcentaje = pctTxt==='' ? 0 : parseFloat(pctTxt);
+  const fecha = $('evalFecha').value || null;
+  const tipo = $('evalTipo').value || 'otro';
   if(!nombre){ toast('Escribe un nombre'); return; }
-  if(!porcentaje || porcentaje<=0 || porcentaje>100){ toast('Ingresa un porcentaje válido (1-100)'); return; }
+  if(isNaN(porcentaje) || porcentaje<0 || porcentaje>100){ toast('El porcentaje debe estar entre 0 y 100'); return; }
+  if(!porcentaje && !fecha){ toast('Pon un porcentaje o una fecha'); return; }
+  if(!$('evalMateriaField').classList.contains('hidden')) currentMateriaDetalleId = $('evalMateria').value;
+  if(!currentMateriaDetalleId){ toast('Elige una materia'); return; }
   const notaVal = $('evalNota').value;
   const nota = notaVal==='' ? null : clamp(parseFloat(notaVal),0,ESCALA_NOTA);
   const id = editingEvaluacionId || crypto.randomUUID();
   const existente = editingEvaluacionId ? evaluaciones.find(x=>x.id===editingEvaluacionId) : null;
   await dbPut('evaluaciones', {
-    id, materiaId: currentMateriaDetalleId, nombre, porcentaje, nota,
+    id, materiaId: currentMateriaDetalleId, nombre, porcentaje, nota, tipo, fecha,
     creadoEn: existente ? existente.creadoEn : Date.now()
   });
   await cargarMaterias();
   closeSheet('ovEvaluacion');
   toast('Guardado');
-  renderMateriaDetalle();
+  refrescarTrasEvaluacion();
 });
 $('btnBorrarEvaluacion').addEventListener('click', async ()=>{
   if(!editingEvaluacionId) return;
@@ -2678,7 +2860,7 @@ $('btnBorrarEvaluacion').addEventListener('click', async ()=>{
   await dbDelete('evaluaciones', editingEvaluacionId);
   await cargarMaterias();
   closeSheet('ovEvaluacion');
-  renderMateriaDetalle();
+  refrescarTrasEvaluacion();
 });
 
 /* ================= SEGURIDAD (AJUSTES) ================= */
@@ -3130,6 +3312,30 @@ $('btnWipe').addEventListener('click', async ()=>{
   location.reload();
 });
 
+/* ================= AVISOS DE EVALUACIONES (copia en Supabase para el atajo) ================= */
+let firmaEvaluacionesNube = null;
+async function sincronizarEvaluacionesNube(forzar=false){
+  if(!siriCfg || !navigator.onLine) return;
+  const hoy = todayISO();
+  const filas = evaluaciones.filter(e=>e.fecha && e.fecha>=hoy).map(e=>{
+    const mat = materias.find(m=>m.id===e.materiaId);
+    return mat ? {id:e.id, fecha:e.fecha, nombre:e.nombre, materia:mat.nombre, tipo:TIPOS_EVAL[tipoDeEvaluacion(e)].nombre} : null;
+  }).filter(Boolean).sort((a,b)=>a.id<b.id?-1:1);
+  const firma = JSON.stringify(filas);
+  if(!forzar && firma===firmaEvaluacionesNube) return;   // nada cambió
+  try{
+    const url = siriEndpoint(siriCfg,'evaluaciones_proximas');
+    const del = await fetch(url+'?id=not.is.null', {method:'DELETE', headers:siriHeaders(siriCfg)});
+    if(del.status===404) return;          // la tabla aún no existe en Supabase
+    if(!del.ok) throw new Error('HTTP '+del.status);
+    if(filas.length){
+      const ins = await fetch(url, {method:'POST', headers:{...siriHeaders(siriCfg), 'Prefer':'return=minimal'}, body:JSON.stringify(filas)});
+      if(!ins.ok) throw new Error('HTTP '+ins.status);
+    }
+    firmaEvaluacionesNube = firma;
+  }catch(e){ console.warn('Avisos de evaluaciones:', e); }
+}
+
 /* ================= SIRI (bandeja de entrada en Supabase) ================= */
 let siriCfg = null;      // {url, key, token}
 let siriSyncing = false;
@@ -3305,6 +3511,7 @@ $('btnGuardarSiri').addEventListener('click', async ()=>{
   await cargarSiriCfg();
   closeSheet('ovSiri');
   await sincronizarSiri(false);
+  sincronizarEvaluacionesNube(true);
 });
 $('btnQuitarSiri').addEventListener('click', async ()=>{
   await dbDelete('config','siriSync');
@@ -3325,6 +3532,7 @@ async function cargarTodo(){
   document.querySelectorAll('nav.bottom-nav button').forEach(b=>b.classList.toggle('active', b.dataset.tab==='hoy'));
   renderHoy();
   sincronizarSiri();
+  sincronizarEvaluacionesNube(true);
 }
 
 /* ================= ARRANQUE ================= */
