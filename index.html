@@ -2716,12 +2716,51 @@ function blobToBase64(blob){
 function base64ToBlob(dataUrl){
   return fetch(dataUrl).then(r=>r.blob());
 }
+/* ---- Entregar archivos: menú Compartir de iOS (Guardar en Archivos, WhatsApp…) o descarga normal ---- */
+const STORES_RESPALDO = ['gastos','categorias','tasas','presupuestos','metas','movimientosAhorro','compras','tratamiento','materias','evaluaciones'];
+const CONFIG_NO_RESPALDAR = ['authMethod','credentialId','pinHash']; // la seguridad es de cada teléfono
+async function entregarArchivo(nombre, contenido, tipo){
+  const file = new File([contenido], nombre, {type: tipo});
+  if(navigator.canShare && navigator.canShare({files:[file]})){
+    try{ await navigator.share({files:[file], title:nombre}); return 'ok'; }
+    catch(e){
+      if(e && e.name==='AbortError') return 'cancelado';
+      return await pedirToqueParaCompartir(file); // iOS a veces pide un toque nuevo
+    }
+  }
+  const url = URL.createObjectURL(file);
+  const a = document.createElement('a');
+  a.href = url; a.download = nombre;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 60000);
+  return 'ok';
+}
+function pedirToqueParaCompartir(file){
+  return new Promise(res=>{
+    const capa = document.createElement('div');
+    capa.style.cssText = 'position:fixed;inset:0;z-index:400;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;justify-content:center;padding:24px;padding-bottom:calc(env(safe-area-inset-bottom,0px) + 24px);';
+    const b = document.createElement('button');
+    b.className = 'btn btn-primary';
+    b.style.cssText = 'width:100%;max-width:420px;';
+    b.textContent = '📤 Guardar o compartir ' + file.name;
+    capa.appendChild(b);
+    document.body.appendChild(capa);
+    capa.addEventListener('click', ev=>{ if(ev.target===capa){ capa.remove(); res('cancelado'); } });
+    b.addEventListener('click', async ()=>{
+      try{ await navigator.share({files:[file], title:file.name}); res('ok'); }
+      catch(e){ res(e && e.name==='AbortError' ? 'cancelado' : 'error'); }
+      capa.remove();
+    });
+  });
+}
 $('btnExport').addEventListener('click', async ()=>{
   try{
     toast('Preparando respaldo…');
-    const [gastos, cats, tasasAll, cfgIngreso] = await Promise.all([
-      dbGetAll('gastos'), dbGetAll('categorias'), dbGetAll('tasas'), dbGet('config','ingresoMensual')
-    ]);
+    const stores = {};
+    for(const n of STORES_RESPALDO) stores[n] = await dbGetAll(n);
+    const config = (await dbGetAll('config')).filter(c=>!CONFIG_NO_RESPALDAR.includes(c.clave));
+    const gastos = stores.gastos;
+    const cfgIngreso = config.find(c=>c.clave==='ingresoMensual');
     const fotos = [];
     for(const g of gastos){
       if(g.tieneFoto){
@@ -2729,16 +2768,13 @@ $('btnExport').addEventListener('click', async ()=>{
         if(f) fotos.push({id:g.id, data: await blobToBase64(f.blob)});
       }
     }
-    const payload = { version:1, exportadoEl:new Date().toISOString(), gastos, categorias:cats, tasas:tasasAll, ingresoMensual: cfgIngreso?cfgIngreso.valor:null, fotos };
-    const json = JSON.stringify(payload);
-    const downloads = window.claude ? await window.claude.use('downloads') : null;
-    if(downloads){
-      await downloads.save({filename:`libreta-respaldo-${todayISO()}.json`, data: json});
-      toast('Respaldo guardado');
-    } else {
-      toast('Abre esta app desde su enlace en Safari para poder exportar.');
-    }
-  }catch(e){ toast('No se pudo exportar'); }
+    const payload = { version:2, exportadoEl:new Date().toISOString(), stores, config,
+      // compatibilidad con respaldos antiguos
+      gastos, categorias:stores.categorias, tasas:stores.tasas, ingresoMensual: cfgIngreso?cfgIngreso.valor:null, fotos };
+    const r = await entregarArchivo(`libreta-respaldo-${todayISO()}.json`, JSON.stringify(payload), 'application/json');
+    if(r==='ok') toast('Respaldo listo ✓');
+    else if(r==='error') toast('No se pudo compartir el respaldo');
+  }catch(e){ console.error(e); toast('No se pudo exportar'); }
 });
 function csvField(v){
   const s = String(v==null?'':v);
@@ -2762,13 +2798,9 @@ $('btnExportCsv').addEventListener('click', async ()=>{
       ]);
     });
     const csv = '\ufeff' + filas.map(fila=>fila.map(csvField).join(',')).join('\r\n');
-    const downloads = window.claude ? await window.claude.use('downloads') : null;
-    if(downloads){
-      await downloads.save({filename:`libreta-gastos-${todayISO()}.csv`, data: csv});
-      toast('Excel guardado');
-    } else {
-      toast('Abre esta app desde su enlace en Safari para poder exportar.');
-    }
+    const r = await entregarArchivo(`libreta-gastos-${todayISO()}.csv`, csv, 'text/csv');
+    if(r==='ok') toast('Excel listo ✓');
+    else if(r==='error') toast('No se pudo compartir el archivo');
   }catch(e){ toast('No se pudo generar el archivo'); }
 });
 $('importInput').addEventListener('change', async (e)=>{
@@ -2778,11 +2810,20 @@ $('importInput').addEventListener('change', async (e)=>{
     const text = await file.text();
     const data = JSON.parse(text);
     if(!data || !Array.isArray(data.gastos)) throw new Error('formato inválido');
-    if(!confirm(`Se importarán ${data.gastos.length} gastos. Los datos existentes con el mismo id se sobrescribirán. ¿Continuar?`)) return;
-    for(const c of (data.categorias||[])) await dbPut('categorias', c);
-    for(const t of (data.tasas||[])) await dbPut('tasas', t);
-    if(data.ingresoMensual) await dbPut('config',{clave:'ingresoMensual', valor:data.ingresoMensual});
-    for(const g of data.gastos) await dbPut('gastos', g);
+    const extra = data.stores ? ' además de tasas, presupuestos, metas, compras, tratamiento y materias' : '';
+    if(!confirm(`Se importarán ${data.gastos.length} gastos${extra}. Los datos existentes con el mismo id se sobrescribirán. ¿Continuar?`)){ e.target.value=''; return; }
+    if(data.stores){
+      for(const n of STORES_RESPALDO){
+        const filas = data.stores[n];
+        if(Array.isArray(filas) && filas.length) await tx(n,'readwrite',(st)=>{ for(const f of filas) st[n].put(f); });
+      }
+      for(const c of (data.config||[])) if(!CONFIG_NO_RESPALDAR.includes(c.clave)) await dbPut('config', c);
+    } else {
+      for(const c of (data.categorias||[])) await dbPut('categorias', c);
+      for(const t of (data.tasas||[])) await dbPut('tasas', t);
+      if(data.ingresoMensual) await dbPut('config',{clave:'ingresoMensual', valor:data.ingresoMensual});
+      for(const g of data.gastos) await dbPut('gastos', g);
+    }
     for(const f of (data.fotos||[])){
       const blob = await base64ToBlob(f.data);
       await dbPut('fotos', {id:f.id, blob});
